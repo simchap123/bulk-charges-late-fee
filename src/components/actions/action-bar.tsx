@@ -63,6 +63,7 @@ export function ActionBar() {
     descriptionTemplate,
     setChargeDate,
     setDescriptionTemplate,
+    duplicateExcludedIds,
   } = useChargesStore();
   const { loadData } = useChargesData();
   const [isExporting, setIsExporting] = useState(false);
@@ -72,8 +73,9 @@ export function ActionBar() {
 
   const selectedRows = filteredRows.filter(row => selectedIds.has(getRowId(row)));
   const hasSelection = selectedRows.length > 0;
-  const validForBulk = selectedRows.filter(r => r._v0OccupancyId && r.amount > 0);
-  const invalidCount = selectedRows.length - validForBulk.length;
+  const validForBulk = selectedRows.filter(r => r._v0OccupancyId && r.amount > 0 && !duplicateExcludedIds.has(getRowId(r)));
+  const duplicateSkipCount = selectedRows.filter(r => r._v0OccupancyId && r.amount > 0 && duplicateExcludedIds.has(getRowId(r))).length;
+  const invalidCount = selectedRows.length - validForBulk.length - duplicateSkipCount;
 
   // Generate sample payload for preview (READ-ONLY - NO POST!)
   // GL Account ID is server-side only, show placeholder in preview
@@ -320,6 +322,13 @@ export function ActionBar() {
               <div className="flex items-center gap-2 text-sm text-amber-500">
                 <AlertTriangle className="h-4 w-4" />
                 <span>{invalidCount} rows will be skipped (missing V0 ID or $0 amount)</span>
+              </div>
+            )}
+
+            {duplicateSkipCount > 0 && (
+              <div className="flex items-center gap-2 text-sm text-amber-500">
+                <AlertTriangle className="h-4 w-4" />
+                <span>{duplicateSkipCount} rows will be skipped (duplicates)</span>
               </div>
             )}
 

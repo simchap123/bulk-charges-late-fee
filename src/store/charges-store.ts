@@ -18,6 +18,10 @@ interface ChargesState {
   selectedIds: Set<string>;
   warnings: string[];
 
+  // Duplicate detection
+  duplicateExcludedIds: Set<string>; // Row IDs of lower-amount duplicates to exclude from submission
+  duplicateGroupIds: Set<string>; // Row IDs of ALL rows belonging to any duplicate group
+
   // Loading state
   loading: LoadingState;
 
@@ -29,6 +33,7 @@ interface ChargesState {
     showZeroAmount: boolean;
     showMissingOccupancy: boolean;
     onlyMissingOccupancy: boolean;
+    onlyDuplicates: boolean;
   };
 
   // Actions
@@ -50,7 +55,39 @@ function getRowId(row: ChargeRow): string {
   return `${row.propertyName}|${row.unitName}|${row.tenantName}|${row._v2PropertyId}`;
 }
 
-// Apply filters to rows
+// Compute duplicate groups: same tenant at same property/unit
+function computeDuplicates(rows: ChargeRow[]): { excludedIds: Set<string>; groupIds: Set<string> } {
+  const groups = new Map<string, ChargeRow[]>();
+
+  for (const row of rows) {
+    if (row.amount <= 0) continue; // Only rows with amount > 0 count
+    const key = `${row.propertyName}|${row.unitName}|${row.tenantName}`;
+    const group = groups.get(key);
+    if (group) {
+      group.push(row);
+    } else {
+      groups.set(key, [row]);
+    }
+  }
+
+  const excludedIds = new Set<string>();
+  const groupIds = new Set<string>();
+
+  for (const members of groups.values()) {
+    if (members.length < 2) continue; // Not a duplicate group
+    // Sort by amount descending — keep the first (highest)
+    members.sort((a, b) => b.amount - a.amount);
+    for (let i = 0; i < members.length; i++) {
+      const id = getRowId(members[i]);
+      groupIds.add(id);
+      if (i > 0) excludedIds.add(id); // All except highest are excluded
+    }
+  }
+
+  return { excludedIds, groupIds };
+}
+
+// Apply filters to rows (excluding onlyDuplicates which is applied after duplicate computation)
 function applyFilters(rows: ChargeRow[], filters: ChargesState['filters']): ChargeRow[] {
   return rows.filter(row => {
     if (filters.property && !row.propertyName.toLowerCase().includes(filters.property.toLowerCase())) {
@@ -84,7 +121,18 @@ const initialFilters = {
   showZeroAmount: true, // Show all rows initially, let user filter
   showMissingOccupancy: true,
   onlyMissingOccupancy: false,
+  onlyDuplicates: false,
 };
+
+// Apply filters and compute duplicates, then optionally filter to only duplicate group rows
+function computeFilteredState(rows: ChargeRow[], filters: ChargesState['filters']) {
+  const baseFiltered = applyFilters(rows, filters);
+  const { excludedIds, groupIds } = computeDuplicates(baseFiltered);
+  const filteredRows = filters.onlyDuplicates
+    ? baseFiltered.filter(row => groupIds.has(getRowId(row)))
+    : baseFiltered;
+  return { filteredRows, duplicateExcludedIds: excludedIds, duplicateGroupIds: groupIds };
+}
 
 const initialLoading: LoadingState = {
   isLoading: false,
@@ -114,11 +162,13 @@ export const useChargesStore = create<ChargesState>()(
       filteredRows: [],
       selectedIds: new Set(),
       warnings: [],
+      duplicateExcludedIds: new Set(),
+      duplicateGroupIds: new Set(),
       loading: initialLoading,
       filters: initialFilters,
 
       setEnvMode: (mode) => {
-        set({ envMode: mode, rows: [], filteredRows: [], selectedIds: new Set(), warnings: [] });
+        set({ envMode: mode, rows: [], filteredRows: [], selectedIds: new Set(), warnings: [], duplicateExcludedIds: new Set(), duplicateGroupIds: new Set() });
       },
 
       setChargeDate: (date) => {
@@ -131,9 +181,10 @@ export const useChargesStore = create<ChargesState>()(
 
       setRows: (rows, warnings = []) => {
         const { filters } = get();
+        const computed = computeFilteredState(rows, filters);
         set({
           rows,
-          filteredRows: applyFilters(rows, filters),
+          ...computed,
           warnings,
           selectedIds: new Set(),
         });
@@ -148,9 +199,10 @@ export const useChargesStore = create<ChargesState>()(
       setFilter: (key, value) => {
         set((state) => {
           const newFilters = { ...state.filters, [key]: value };
+          const computed = computeFilteredState(state.rows, newFilters);
           return {
             filters: newFilters,
-            filteredRows: applyFilters(state.rows, newFilters),
+            ...computed,
             selectedIds: new Set(),
           };
         });
@@ -190,6 +242,8 @@ export const useChargesStore = create<ChargesState>()(
           filteredRows: [],
           selectedIds: new Set(),
           warnings: [],
+          duplicateExcludedIds: new Set(),
+          duplicateGroupIds: new Set(),
           loading: initialLoading,
           filters: initialFilters,
         });

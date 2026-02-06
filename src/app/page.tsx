@@ -13,7 +13,8 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Separator } from '@/components/ui/separator';
-import { AlertTriangle, DollarSign, Users, Building, LogOut, Info, Copy } from 'lucide-react';
+import { AlertTriangle, DollarSign, Users, Building, LogOut, Info, Copy, CopyX } from 'lucide-react';
+import { cn } from '@/lib/utils';
 import { toast } from 'sonner';
 import type { RowSelectionState } from '@tanstack/react-table';
 
@@ -33,7 +34,7 @@ const LATE_FEE_RULES = `Late Fee Rules (Illinois):
 • All other Illinois properties (Cook County suburbs, Kane County, etc.): $10 for the first $1,000 of monthly rent, plus 5% of any amount exceeding $1,000.`;
 
 export default function Home() {
-  const { filteredRows, warnings, selectedIds, toggleSelection, clearSelection } = useChargesStore();
+  const { filteredRows, warnings, selectedIds, toggleSelection, clearSelection, duplicateExcludedIds } = useChargesStore();
   const mounted = useHasMounted();
   const router = useRouter();
 
@@ -73,6 +74,7 @@ export default function Home() {
   const uniqueProperties = new Set(filteredRows.map(r => r.propertyName)).size;
   const uniqueTenants = filteredRows.length;
   const missingOccupancy = filteredRows.filter(r => !r._v0OccupancyId).length;
+  const duplicateCount = duplicateExcludedIds.size;
 
   if (!mounted) {
     return null;
@@ -106,7 +108,7 @@ export default function Home() {
       <main className="container px-4 py-6 space-y-6">
         {/* Stats Cards */}
         {filteredRows.length > 0 && (
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+          <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
             <Card>
               <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
                 <CardTitle className="text-sm font-medium">Total Amount</CardTitle>
@@ -155,6 +157,18 @@ export default function Home() {
                 </p>
               </CardContent>
             </Card>
+            <Card>
+              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                <CardTitle className="text-sm font-medium">Duplicates</CardTitle>
+                <CopyX className="h-4 w-4 text-amber-500" />
+              </CardHeader>
+              <CardContent>
+                <div className={cn("text-2xl font-bold", duplicateCount > 0 && "text-amber-500")}>{duplicateCount}</div>
+                <p className="text-xs text-muted-foreground">
+                  excluded from bulk
+                </p>
+              </CardContent>
+            </Card>
           </div>
         )}
 
@@ -188,6 +202,8 @@ export default function Home() {
             data={filteredRows}
             rowSelection={rowSelection}
             onRowSelectionChange={handleRowSelectionChange}
+            duplicateExcludedIds={duplicateExcludedIds}
+            getRowId={getRowId}
           />
         ) : (
           <Card className="mt-8">

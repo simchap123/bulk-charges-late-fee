@@ -23,12 +23,15 @@ import {
 import { Button } from '@/components/ui/button';
 import { ScrollArea, ScrollBar } from '@/components/ui/scroll-area';
 import { ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight } from 'lucide-react';
+import { cn } from '@/lib/utils';
 
 interface DataTableProps<TData, TValue> {
   columns: ColumnDef<TData, TValue>[];
   data: TData[];
   rowSelection: RowSelectionState;
   onRowSelectionChange: (selection: RowSelectionState) => void;
+  duplicateExcludedIds?: Set<string>;
+  getRowId?: (row: TData) => string;
 }
 
 export function DataTable<TData, TValue>({
@@ -36,6 +39,8 @@ export function DataTable<TData, TValue>({
   data,
   rowSelection,
   onRowSelectionChange,
+  duplicateExcludedIds,
+  getRowId: getRowIdProp,
 }: DataTableProps<TData, TValue>) {
   const [sorting, setSorting] = useState<SortingState>([]);
 
@@ -95,11 +100,15 @@ export function DataTable<TData, TValue>({
           </TableHeader>
           <TableBody>
             {table.getRowModel().rows?.length ? (
-              table.getRowModel().rows.map((row) => (
+              table.getRowModel().rows.map((row) => {
+                const isDuplicateExcluded = duplicateExcludedIds && getRowIdProp
+                  ? duplicateExcludedIds.has(getRowIdProp(row.original))
+                  : false;
+                return (
                 <TableRow
                   key={row.id}
                   data-state={row.getIsSelected() && 'selected'}
-                  className="group"
+                  className={cn("group", isDuplicateExcluded && "bg-amber-500/10 border-l-2 border-l-amber-500")}
                 >
                   {row.getVisibleCells().map((cell) => (
                     <TableCell key={cell.id} className="py-2">
@@ -107,7 +116,8 @@ export function DataTable<TData, TValue>({
                     </TableCell>
                   ))}
                 </TableRow>
-              ))
+                );
+              })
             ) : (
               <TableRow>
                 <TableCell colSpan={columns.length} className="h-24 text-center">

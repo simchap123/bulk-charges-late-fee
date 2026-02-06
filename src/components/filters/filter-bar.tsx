@@ -79,6 +79,18 @@ export function FilterBar() {
           ONLY missing V0 IDs
         </Label>
       </div>
+
+      {/* Only Duplicates - to isolate duplicate tenant/property/unit rows */}
+      <div className="flex items-center gap-2">
+        <Switch
+          id="only-duplicates"
+          checked={filters.onlyDuplicates}
+          onCheckedChange={(checked) => setFilter('onlyDuplicates', checked)}
+        />
+        <Label htmlFor="only-duplicates" className="text-sm cursor-pointer text-destructive">
+          ONLY duplicates
+        </Label>
+      </div>
     </div>
   );
 }
