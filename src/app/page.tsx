@@ -1,19 +1,17 @@
 'use client';
 
 import { useSyncExternalStore, useCallback } from 'react';
-import { useRouter } from 'next/navigation';
 import { useChargesStore, getRowId } from '@/store/charges-store';
 import { DataTable } from '@/components/charges-table/data-table';
 import { columns } from '@/components/charges-table/columns';
 import { FilterBar } from '@/components/filters/filter-bar';
 import { ActionBar } from '@/components/actions/action-bar';
-import { ThemeToggle } from '@/components/theme-toggle';
-import { EnvModeToggle } from '@/components/env-mode-toggle';
+import { Header } from '@/components/layout/header';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Separator } from '@/components/ui/separator';
-import { AlertTriangle, DollarSign, Users, Building, LogOut, Info, Copy } from 'lucide-react';
+import { AlertTriangle, DollarSign, Users, Building, Info, Copy } from 'lucide-react';
 import { toast } from 'sonner';
 import type { RowSelectionState } from '@tanstack/react-table';
 
@@ -35,13 +33,6 @@ const LATE_FEE_RULES = `Late Fee Rules (Illinois):
 export default function Home() {
   const { filteredRows, warnings, selectedIds, toggleSelection, clearSelection } = useChargesStore();
   const mounted = useHasMounted();
-  const router = useRouter();
-
-  const handleLogout = useCallback(async () => {
-    await fetch('/api/auth/logout', { method: 'POST' });
-    router.push('/login');
-    router.refresh();
-  }, [router]);
 
   const copyRules = useCallback(() => {
     navigator.clipboard.writeText(LATE_FEE_RULES);
@@ -80,27 +71,7 @@ export default function Home() {
 
   return (
     <div className="min-h-screen bg-background">
-      {/* Header */}
-      <header className="sticky top-0 z-50 w-full border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
-        <div className="container flex h-14 items-center justify-between px-4">
-          <div className="flex items-center gap-3">
-            <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary text-primary-foreground">
-              <DollarSign className="h-5 w-5" />
-            </div>
-            <div>
-              <h1 className="text-lg font-semibold">Bulk Charges Builder</h1>
-              <p className="text-xs text-muted-foreground">AppFolio Late Fee Calculator</p>
-            </div>
-          </div>
-          <div className="flex items-center gap-3">
-            <EnvModeToggle />
-            <ThemeToggle />
-            <Button variant="ghost" size="icon" className="h-9 w-9" onClick={handleLogout} title="Logout">
-              <LogOut className="h-4 w-4" />
-            </Button>
-          </div>
-        </div>
-      </header>
+      <Header />
 
       {/* Main Content */}
       <main className="container px-4 py-6 space-y-6">

@@ -3,14 +3,38 @@ import type { NextRequest } from 'next/server';
 
 const AUTH_COOKIE = 'bcb_session';
 const AUTH_PASSWORD = process.env.AUTH_PASSWORD || '';
-const AUTH_SECRET = AUTH_PASSWORD + '_secret_key';
+const AUTH_SECRET = process.env.AUTH_SECRET || '';
 
-// Simple HMAC for Edge runtime
+/**
+ * Derive HMAC key — same logic as auth.ts to ensure tokens match.
+ */
+function getSecretKey(): string {
+  return AUTH_SECRET || (AUTH_PASSWORD + '_bulk_charges_hmac');
+}
+
+/**
+ * Constant-time comparison via SHA-256 XOR.
+ */
+async function timingSafeEqual(a: string, b: string): Promise<boolean> {
+  const encoder = new TextEncoder();
+  const [hashA, hashB] = await Promise.all([
+    crypto.subtle.digest('SHA-256', encoder.encode(a)),
+    crypto.subtle.digest('SHA-256', encoder.encode(b)),
+  ]);
+  const arrA = new Uint8Array(hashA);
+  const arrB = new Uint8Array(hashB);
+  let result = 0;
+  for (let i = 0; i < arrA.length; i++) {
+    result |= arrA[i] ^ arrB[i];
+  }
+  return result === 0;
+}
+
 async function createSignature(data: string): Promise<string> {
   const encoder = new TextEncoder();
   const key = await crypto.subtle.importKey(
     'raw',
-    encoder.encode(AUTH_SECRET),
+    encoder.encode(getSecretKey()),
     { name: 'HMAC', hash: 'SHA-256' },
     false,
     ['sign']
@@ -34,9 +58,9 @@ async function verifyToken(token: string): Promise<boolean> {
   // Check expiry (30 days)
   if (Date.now() - ts > 30 * 24 * 60 * 60 * 1000) return false;
 
-  // Verify signature
+  // Verify signature (timing-safe)
   const expected = await createSignature(timestamp + AUTH_PASSWORD);
-  return signature === expected;
+  return timingSafeEqual(signature, expected);
 }
 
 export async function middleware(request: NextRequest) {
@@ -44,6 +68,11 @@ export async function middleware(request: NextRequest) {
 
   // Skip auth for login page and auth API routes
   if (pathname === '/login' || pathname.startsWith('/api/auth/')) {
+    return NextResponse.next();
+  }
+
+  // Skip middleware for scheduler cron endpoint (auth handled inside route)
+  if (pathname === '/api/scheduler/run') {
     return NextResponse.next();
   }
 
